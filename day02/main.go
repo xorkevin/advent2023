@@ -14,10 +14,7 @@ const (
 	puzzleInput = "input.txt"
 )
 
-var (
-	numRegex  = regexp.MustCompile(`\d+`)
-	wordRegex = regexp.MustCompile(`[a-z]+`)
-)
+var numRegex = regexp.MustCompile(`\d+`)
 
 func main() {
 	file, err := os.Open(puzzleInput)
@@ -51,11 +48,15 @@ func main() {
 		for _, i := range rounds {
 			cubes := strings.Split(i, ", ")
 			for _, j := range cubes {
-				count, err := strconv.Atoi(numRegex.FindString(j))
+				a, b, ok := strings.Cut(j, " ")
+				if !ok {
+					log.Fatalln("Invalid cubes")
+				}
+				count, err := strconv.Atoi(a)
 				if err != nil {
 					log.Fatalln(err)
 				}
-				switch wordRegex.FindString(j) {
+				switch b {
 				case "red":
 					if count > 12 {
 						possible = false

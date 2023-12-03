@@ -58,18 +58,18 @@ func main() {
 			if err != nil {
 				log.Fatalln(err)
 			}
-			isSym := false
+			hasSym := false
 			n := getNeighbors(left, right, lim, buf)
 			for _, k := range buf[:n] {
 				if sym := grid[k.y][k.x]; isSymbol(sym) {
-					isSym = true
+					hasSym = true
 					if sym == '*' {
 						id := k.y*lim.x + k.x
 						gears[id] = append(gears[id], num)
 					}
 				}
 			}
-			if isSym {
+			if hasSym {
 				sum += num
 			}
 		}
@@ -98,12 +98,6 @@ type (
 )
 
 func getNeighbors(p1, p2, lim Vec2, buf []Vec2) int {
-	if p1.x > p2.x {
-		p1, p2 = p2, p1
-	}
-	if p1.y > p2.y {
-		p1.y, p2.y = p2.y, p1.y
-	}
 	idx := 0
 	if y := p1.y - 1; y >= 0 {
 		for i := p1.x; i <= p2.x; i++ {

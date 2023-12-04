@@ -30,7 +30,7 @@ func main() {
 	sum := 0
 
 	totalCards := 0
-	bonusCards := map[int]int{}
+	bonusCards := make([]int, 256)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -75,7 +75,7 @@ func main() {
 		totalCards += currentMultiplier
 		for i := 0; i < count; i++ {
 			k := cardNum + 1 + i
-			bonusCards[k] = bonusCards[k] + currentMultiplier
+			bonusCards[k] += currentMultiplier
 		}
 	}
 

@@ -16,6 +16,8 @@ const (
 
 var digitsRegex = regexp.MustCompile(`\d+`)
 
+const numSlots = 10
+
 func main() {
 	file, err := os.Open(puzzleInput)
 	if err != nil {
@@ -30,7 +32,7 @@ func main() {
 	sum := 0
 
 	totalCards := 0
-	bonusCards := make([]int, 256)
+	bonusCards := [numSlots]int{}
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -71,10 +73,12 @@ func main() {
 		}
 		sum += points
 
-		currentMultiplier := bonusCards[cardNum] + 1
+		slot := (cardNum + 4) % numSlots
+		currentMultiplier := bonusCards[slot] + 1
+		bonusCards[slot] = 0
 		totalCards += currentMultiplier
-		for i := 0; i < count; i++ {
-			k := cardNum + 1 + i
+		for i := 1; i <= count; i++ {
+			k := (slot + i) % numSlots
 			bonusCards[k] += currentMultiplier
 		}
 	}

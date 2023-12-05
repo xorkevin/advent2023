@@ -9,13 +9,15 @@ const PUZZLEINPUT: &str = "input.txt";
 
 static DIGIT_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\d+").unwrap());
 
+const NUM_SLOTS: usize = 10;
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file = File::open(PUZZLEINPUT)?;
     let reader = BufReader::new(file);
 
     let mut sum = 0;
     let mut total_cards = 0;
-    let mut bonus_cards = vec![0; 256];
+    let mut bonus_cards = [0; NUM_SLOTS];
 
     for line in reader.lines() {
         let line = line?;
@@ -40,10 +42,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         sum += points;
 
-        let current_multiplier = bonus_cards[card_num] + 1;
+        let slot = (card_num + 4) % NUM_SLOTS;
+        let current_multiplier = bonus_cards[slot] + 1;
+        bonus_cards[slot] = 0;
         total_cards += current_multiplier;
-        for i in card_num + 1..card_num + 1 + count {
-            bonus_cards[i] += current_multiplier;
+        for i in 1..=count {
+            bonus_cards[(slot + i) % NUM_SLOTS] += current_multiplier;
         }
     }
 

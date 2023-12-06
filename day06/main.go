@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 )
 
 type (
@@ -44,14 +45,13 @@ func main() {
 }
 
 func simulate(race Race) int {
-	count := 0
-	for i := 0; i <= race.Time; i++ {
-		speed := i
-		duration := race.Time - i
-		dist := speed * duration
-		if dist > race.Dist {
-			count++
-		}
+	axis := 0.5 * float64(race.Time)
+	if maxPossible := int(math.Floor(math.Pow(axis, 2))); maxPossible <= race.Dist {
+		return 0
 	}
-	return count
+
+	disc := math.Sqrt(math.Pow(float64(race.Time), 2)-(4.0*float64(race.Dist))) * 0.5
+	start := int(math.Ceil(axis - disc))
+	end := int(math.Floor(axis + disc))
+	return end - start + 1
 }

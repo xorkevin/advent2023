@@ -14,6 +14,16 @@ const (
 	puzzleInput = "input.txt"
 )
 
+type (
+	CardHand struct {
+		Kind   int8
+		KindJ  int8
+		Score  int
+		ScoreJ int
+		Bid    int
+	}
+)
+
 func main() {
 	file, err := os.Open(puzzleInput)
 	if err != nil {
@@ -37,11 +47,13 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
+		ab := []byte(a)
 		hands = append(hands, CardHand{
-			Kind:  handKind([]byte(a)),
-			KindJ: handKindJ([]byte(a)),
-			Bid:   num,
-			Str:   a,
+			Kind:   handKind(ab, false),
+			KindJ:  handKind(ab, true),
+			Score:  scoreHand(ab, false),
+			ScoreJ: scoreHand(ab, true),
+			Bid:    num,
 		})
 	}
 
@@ -50,23 +62,10 @@ func main() {
 	}
 
 	slices.SortFunc(hands, func(a, b CardHand) int {
-		if a.Kind < b.Kind {
-			return -1
+		if a.Kind == b.Kind {
+			return a.Score - b.Score
 		}
-		if a.Kind > b.Kind {
-			return 1
-		}
-		for i := range a.Str {
-			x := cardToScore(a.Str[i])
-			y := cardToScore(b.Str[i])
-			if x < y {
-				return -1
-			}
-			if x > y {
-				return 1
-			}
-		}
-		return 0
+		return int(a.Kind - b.Kind)
 	})
 
 	sum := 0
@@ -76,23 +75,10 @@ func main() {
 	fmt.Println("Part 1:", sum)
 
 	slices.SortFunc(hands, func(a, b CardHand) int {
-		if a.KindJ < b.KindJ {
-			return -1
+		if a.KindJ == b.KindJ {
+			return a.ScoreJ - b.ScoreJ
 		}
-		if a.KindJ > b.KindJ {
-			return 1
-		}
-		for i := range a.Str {
-			x := cardToScoreJ(a.Str[i])
-			y := cardToScoreJ(b.Str[i])
-			if x < y {
-				return -1
-			}
-			if x > y {
-				return 1
-			}
-		}
-		return 0
+		return int(a.KindJ - b.KindJ)
 	})
 
 	sum = 0
@@ -102,144 +88,82 @@ func main() {
 	fmt.Println("Part 2:", sum)
 }
 
-func cardToScore(b byte) int {
+func scoreCard(b byte, withJoker bool) int {
 	if b >= '2' && b <= '9' {
-		return int(b - '2' + 2)
+		return int(b - '2' + 1)
 	}
 	switch b {
 	case 'T':
-		return 10
+		return 9
 	case 'J':
-		return 11
+		if withJoker {
+			return 0
+		} else {
+			return 10
+		}
 	case 'Q':
-		return 12
+		return 11
 	case 'K':
-		return 13
+		return 12
 	case 'A':
-		return 14
+		return 13
 	}
 	return 0
 }
 
-func cardToScoreJ(b byte) int {
-	if b == 'J' {
-		return 1
+func scoreHand(b []byte, withJoker bool) int {
+	sum := 0
+	for _, i := range b {
+		sum = sum*14 + scoreCard(i, withJoker)
 	}
-	return cardToScore(b)
+	return sum
 }
 
-type (
-	CardHand struct {
-		Kind  int
-		KindJ int
-		Bid   int
-		Str   string
-	}
-
-	CardCount struct {
-		Card int
-		Num  int
-	}
-)
-
-func handKind(b []byte) int {
-	cardCountsMap := map[int]int{}
+func handKind(b []byte, withJoker bool) int8 {
+	cardCountsMap := map[byte]int8{}
+	var jokers int8 = 0
 	for _, i := range b {
-		id := cardToScore(i)
-		cardCountsMap[id] = cardCountsMap[id] + 1
-	}
-	cardCounts := make([]CardCount, 0, len(cardCountsMap))
-	for k, v := range cardCountsMap {
-		cardCounts = append(cardCounts, CardCount{
-			Card: k,
-			Num:  v,
-		})
-	}
-	slices.SortFunc(cardCounts, func(a, b CardCount) int {
-		if a.Num > b.Num {
-			return -1
-		}
-		if a.Num < b.Num {
-			return 1
-		}
-		if a.Card > b.Card {
-			return -1
-		}
-		if a.Card < b.Card {
-			return 1
-		}
-		return 0
-	})
-	return sortedCardCountKind(cardCounts)
-}
-
-func handKindJ(b []byte) int {
-	jokers := 0
-	cardCountsMap := map[int]int{}
-	for _, i := range b {
-		if i == 'J' {
+		if withJoker && i == 'J' {
 			jokers++
 			continue
 		}
-		id := cardToScore(i)
-		cardCountsMap[id] = cardCountsMap[id] + 1
+		cardCountsMap[i] = cardCountsMap[i] + 1
 	}
-	cardCounts := make([]CardCount, 0, len(cardCountsMap))
-	for k, v := range cardCountsMap {
-		cardCounts = append(cardCounts, CardCount{
-			Card: k,
-			Num:  v,
-		})
-	}
-	slices.SortFunc(cardCounts, func(a, b CardCount) int {
-		if a.Num > b.Num {
-			return -1
-		}
-		if a.Num < b.Num {
-			return 1
-		}
-		if a.Card > b.Card {
-			return -1
-		}
-		if a.Card < b.Card {
-			return 1
-		}
-		return 0
-	})
-	if len(cardCounts) == 0 {
+	if len(cardCountsMap) == 0 {
 		return 6
 	}
-	cardCounts[0] = CardCount{
-		Card: cardCounts[0].Card,
-		Num:  cardCounts[0].Num + jokers,
+	cardCounts := make([]int8, 0, len(cardCountsMap))
+	for _, v := range cardCountsMap {
+		cardCounts = append(cardCounts, v)
 	}
-	return sortedCardCountKind(cardCounts)
-}
-
-func sortedCardCountKind(counts []CardCount) int {
-	if counts[0].Num == 5 {
+	slices.Sort(cardCounts)
+	slices.Reverse(cardCounts)
+	cardCounts[0] += jokers
+	if cardCounts[0] == 5 {
 		// 5 of kind
 		return 6
 	}
-	if counts[0].Num == 4 {
+	if cardCounts[0] == 4 {
 		// 4 of kind
 		return 5
 	}
-	if counts[0].Num == 3 && counts[1].Num == 2 {
-		// full house
-		return 4
+	if cardCounts[0] == 3 {
+		if cardCounts[1] == 2 {
+			// full house
+			return 4
+		} else {
+			// 3 of kind
+			return 3
+		}
 	}
-	if counts[0].Num == 3 && len(counts) == 3 {
-		// 3 of kind
-		return 3
-	}
-	if counts[0].Num == 2 && counts[1].Num == 2 {
-		// two pair
-		return 2
-	}
-	if counts[0].Num == 2 {
-		// one pair
-		return 1
+	if cardCounts[0] == 2 {
+		if cardCounts[1] == 2 {
+			// two pair
+			return 2
+		} else {
+			// one pair
+			return 1
+		}
 	}
 	return 0
 }

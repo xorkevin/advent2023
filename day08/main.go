@@ -114,6 +114,7 @@ func main() {
 	totalStarts := len(startNodes)
 	for totalRevisits < totalStarts {
 		instr := steps[count%len(steps)]
+		count++
 		for i := range startNodes {
 			next := startNodes[i].Left
 			if instr == 'R' {
@@ -128,16 +129,20 @@ func main() {
 				if revisitNodes[i].ID == "" {
 					revisitNodes[i] = NodeVisit{
 						ID:    node.ID,
-						Count: count + 1,
+						Count: count,
 					}
 				} else if !revisitNodes[i].Candidate {
 					if node.ID != revisitNodes[i].ID {
 						log.Fatalln("Multiple terminals for cycle")
 					}
-					cycle := (count + 1) - revisitNodes[i].Count
+					cycle := count - revisitNodes[i].Count
+					rem := count % cycle
+					if rem != 0 {
+						log.Fatalln("Remainder not zero")
+					}
 					revisitNodes[i] = NodeVisit{
 						ID:        revisitNodes[i].ID,
-						Count:     count + 1,
+						Count:     count,
 						Cycle:     cycle,
 						Candidate: true,
 					}
@@ -146,19 +151,18 @@ func main() {
 					if node.ID != revisitNodes[i].ID {
 						log.Fatalln("Multiple terminals for cycle")
 					}
-					if cycle := (count + 1) - revisitNodes[i].Count; cycle != revisitNodes[i].Cycle {
+					if cycle := count - revisitNodes[i].Count; cycle != revisitNodes[i].Cycle {
 						log.Fatalln("Multiple cycle lengths")
 					}
 					revisitNodes[i] = NodeVisit{
 						ID:        revisitNodes[i].ID,
-						Count:     count + 1,
+						Count:     count,
 						Cycle:     revisitNodes[i].Cycle,
 						Candidate: true,
 					}
 				}
 			}
 		}
-		count++
 	}
 	l := 1
 	for _, i := range revisitNodes {

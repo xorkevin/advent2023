@@ -4,7 +4,6 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::ops::Index;
-use std::ops::IndexMut;
 
 const PUZZLEINPUT: &str = "input.txt";
 
@@ -27,147 +26,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Grid::new(elements, width)
     };
     let start = start.ok_or("Missing start symbol")?;
-    let mut pipe_grid = Grid::new(vec![0; grid.width * grid.height], grid.width);
-    let mut bounds = vec![None; grid.height];
-
-    let (mut na, mut nb) = get_start_neighbors(&grid, start).ok_or("Invalid neighbors")?;
-    {
-        let start_char = get_start_char(na.dir, nb.dir).ok_or("Invalid neighbors")?;
-        pipe_grid[start] = start_char;
-        bounds[start.y] = Some(Coord {
-            x: start.x,
-            y: start.x,
-        });
-        pipe_grid[na.coord] = grid[na.coord];
-        pipe_grid[nb.coord] = grid[nb.coord];
-        match bounds[na.coord.y] {
-            Some(Coord { x, y }) => {
-                bounds[na.coord.y] = Some(Coord {
-                    x: x.min(na.coord.x),
-                    y: y.max(na.coord.x),
-                });
-            }
-            None => {
-                bounds[na.coord.y] = Some(Coord {
-                    x: na.coord.x,
-                    y: na.coord.x,
-                });
-            }
-        }
-        match bounds[nb.coord.y] {
-            Some(Coord { x, y }) => {
-                bounds[nb.coord.y] = Some(Coord {
-                    x: x.min(nb.coord.x),
-                    y: y.max(nb.coord.x),
-                });
-            }
-            None => {
-                bounds[nb.coord.y] = Some(Coord {
-                    x: nb.coord.x,
-                    y: nb.coord.x,
-                });
-            }
-        }
-    }
+    let (mut cur_pos, mut cur_dir) =
+        get_start_neighbor(&grid, start).ok_or("Missing start neighbor")?;
     let mut steps = 1;
-    while na.coord != nb.coord {
-        {
-            let dir = TILE_DIR_MAP
-                .get(&grid[na.coord])
-                .ok_or("Invalid pipe path 1")?[na.dir]
-                .ok_or("Invalid pipe path 2")?;
-            let coord = na.coord.step(dir);
-            na = CoordDir { coord, dir };
-        }
-        {
-            let dir = TILE_DIR_MAP
-                .get(&grid[nb.coord])
-                .ok_or("Invalid pipe path 3")?[nb.dir]
-                .ok_or("Invalid pipe path 4")?;
-            let coord = nb.coord.step(dir);
-            nb = CoordDir { coord, dir };
-        }
-        pipe_grid[na.coord] = grid[na.coord];
-        pipe_grid[nb.coord] = grid[nb.coord];
-        match bounds[na.coord.y] {
-            Some(Coord { x, y }) => {
-                bounds[na.coord.y] = Some(Coord {
-                    x: x.min(na.coord.x),
-                    y: y.max(na.coord.x),
-                });
-            }
-            None => {
-                bounds[na.coord.y] = Some(Coord {
-                    x: na.coord.x,
-                    y: na.coord.x,
-                });
-            }
-        }
-        match bounds[nb.coord.y] {
-            Some(Coord { x, y }) => {
-                bounds[nb.coord.y] = Some(Coord {
-                    x: x.min(nb.coord.x),
-                    y: y.max(nb.coord.x),
-                });
-            }
-            None => {
-                bounds[nb.coord.y] = Some(Coord {
-                    x: nb.coord.x,
-                    y: nb.coord.x,
-                });
-            }
-        }
+    let mut area = match cur_dir {
+        Dir::North => 0,
+        Dir::East => cur_pos.y as isize,
+        Dir::South => 0,
+        Dir::West => -(cur_pos.y as isize),
+    };
+    while cur_pos != start {
+        cur_dir = TILE_DIR_MAP
+            .get(&grid[cur_pos])
+            .ok_or("Invalid pipe path")?[cur_dir]
+            .ok_or("Invalid pipe connection")?;
+        cur_pos = cur_pos.step(cur_dir);
         steps += 1;
-    }
-    println!("Part 1: {}", steps);
-
-    let pipe_grid = pipe_grid;
-
-    let mut sum = 0;
-    for i in 0..pipe_grid.height {
-        if let Some(b) = bounds[i] {
-            let a = pipe_grid.width * i;
-            sum += get_inside_area(&pipe_grid.elements[a + b.x..a + b.y]);
+        area += match cur_dir {
+            Dir::North => 0,
+            Dir::East => cur_pos.y as isize,
+            Dir::South => 0,
+            Dir::West => -(cur_pos.y as isize),
         }
     }
-    println!("Part 2: {}", sum);
-
+    if steps % 2 != 0 {
+        return Err("Pipe path not aligned to grid".into());
+    }
+    let half_steps = steps / 2;
+    println!("Part 1: {}", half_steps);
+    println!("Part 2: {}", area.abs() - half_steps + 1);
     Ok(())
-}
-
-fn get_inside_area(row: &[u8]) -> usize {
-    let mut count = 0;
-    let mut inside = false;
-    let mut prev = 0;
-    for i in row {
-        match i {
-            0 => {
-                if inside {
-                    count += 1
-                }
-            }
-            b'|' => {
-                inside = !inside;
-                prev = 0;
-            }
-            b'L' => prev = b'L',
-            b'J' => {
-                if prev == b'F' {
-                    inside = !inside;
-                }
-                prev = 0;
-            }
-            b'7' => {
-                if prev == b'L' {
-                    inside = !inside;
-                }
-                prev = 0;
-            }
-            b'F' => prev = b'F',
-            _ => {}
-        }
-    }
-    count
 }
 
 struct TileDirMap {
@@ -309,70 +197,26 @@ impl Index<Coord> for Grid {
     }
 }
 
-impl IndexMut<Coord> for Grid {
-    fn index_mut(&mut self, pos: Coord) -> &mut Self::Output {
-        &mut self.elements[self.width * pos.y + pos.x]
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct CoordDir {
-    coord: Coord,
-    dir: Dir,
-}
-
-fn get_start_neighbors(grid: &Grid, pos: Coord) -> Option<(CoordDir, CoordDir)> {
-    let mut neighbors = Vec::with_capacity(4);
+fn get_start_neighbor(grid: &Grid, pos: Coord) -> Option<(Coord, Dir)> {
     let top = pos.step(Dir::North);
     match grid[top] {
-        b'|' | b'7' | b'F' => neighbors.push(CoordDir {
-            coord: top,
-            dir: Dir::North,
-        }),
+        b'|' | b'7' | b'F' => return Some((top, Dir::North)),
         _ => {}
     }
     let right = pos.step(Dir::East);
     match grid[right] {
-        b'-' | b'J' | b'7' => neighbors.push(CoordDir {
-            coord: right,
-            dir: Dir::East,
-        }),
+        b'-' | b'J' | b'7' => return Some((right, Dir::East)),
         _ => {}
     }
     let bot = pos.step(Dir::South);
     match grid[bot] {
-        b'|' | b'L' | b'J' => neighbors.push(CoordDir {
-            coord: bot,
-            dir: Dir::South,
-        }),
+        b'|' | b'L' | b'J' => return Some((bot, Dir::South)),
         _ => {}
     }
     let left = pos.step(Dir::West);
     match grid[left] {
-        b'-' | b'L' | b'F' => neighbors.push(CoordDir {
-            coord: left,
-            dir: Dir::West,
-        }),
+        b'-' | b'L' | b'F' => return Some((left, Dir::West)),
         _ => {}
     }
-    if let &[a, b] = &neighbors[..] {
-        Some((a, b))
-    } else {
-        None
-    }
-}
-
-fn get_start_char(mut a: Dir, mut b: Dir) -> Option<u8> {
-    if a as isize > b as isize {
-        (a, b) = (b, a)
-    }
-    match (a, b) {
-        (Dir::North, Dir::East) => Some(b'L'),
-        (Dir::North, Dir::South) => Some(b'|'),
-        (Dir::North, Dir::West) => Some(b'J'),
-        (Dir::East, Dir::South) => Some(b'F'),
-        (Dir::East, Dir::West) => Some(b'-'),
-        (Dir::South, Dir::West) => Some(b'7'),
-        _ => None,
-    }
+    None
 }

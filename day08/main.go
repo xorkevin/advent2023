@@ -24,6 +24,7 @@ type (
 		ID        string
 		Count     int
 		Cycle     int
+		Rem       int
 		Candidate bool
 	}
 )
@@ -136,14 +137,11 @@ func main() {
 						log.Fatalln("Multiple terminals for cycle")
 					}
 					cycle := count - revisitNodes[i].Count
-					rem := count % cycle
-					if rem != 0 {
-						log.Fatalln("Remainder not zero")
-					}
 					revisitNodes[i] = NodeVisit{
 						ID:        revisitNodes[i].ID,
 						Count:     count,
 						Cycle:     cycle,
+						Rem:       count % cycle,
 						Candidate: true,
 					}
 					totalRevisits++
@@ -158,30 +156,63 @@ func main() {
 						ID:        revisitNodes[i].ID,
 						Count:     count,
 						Cycle:     revisitNodes[i].Cycle,
+						Rem:       revisitNodes[i].Rem,
 						Candidate: true,
 					}
 				}
 			}
 		}
 	}
-	l := 1
-	for _, i := range revisitNodes {
-		l = lcm(l, i.Cycle)
+	a := revisitNodes[0].Rem
+	m := revisitNodes[0].Cycle
+	for _, i := range revisitNodes[1:] {
+		var ok bool
+		a, m, ok = crt(a, m, i.Rem, i.Cycle)
+		if !ok {
+			log.Fatalln("Unsolvable constraints")
+		}
 	}
-	fmt.Println("Part 2:", l)
+	if a <= 0 {
+		a += m
+	}
+	fmt.Println("Part 2:", a)
 }
 
-func lcm(a, b int) int {
-	return a * b / gcd(a, b)
+func crt(a1, m1, a2, m2 int) (int, int, bool) {
+	g, p, q := extGCD(m1, m2)
+	if a1%g != a2%g {
+		return 0, 0, false
+	}
+	m1g := m1 / g
+	m2g := m2 / g
+	lcm := m1g * m2
+	// a1 * m2/g * q + a2 * m1/g * p (mod lcm)
+	x := ((((a1*m2g)%lcm)*q)%lcm + (((a2*m1g)%lcm)*p)%lcm) % lcm
+	if x < 0 {
+		x += lcm
+	}
+	return x, lcm, true
 }
 
-func gcd(a, b int) int {
-	// b should be larger than a
-	if a > b {
+func extGCD(a, b int) (int, int, int) {
+	x2 := 1
+	x1 := 0
+	y2 := 0
+	y1 := 1
+	// a should be larger than b
+	flip := false
+	if a < b {
 		a, b = b, a
+		flip = true
 	}
-	for a != 0 {
-		a, b = b%a, a
+	for b > 0 {
+		q := a / b
+		a, b = b, a%b
+		x2, x1 = x1, x2-q*x1
+		y2, y1 = y1, y2-q*y1
 	}
-	return b
+	if flip {
+		x2, y2 = y2, x2
+	}
+	return a, x2, y2
 }

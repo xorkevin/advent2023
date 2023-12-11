@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"log"
+	"math/bits"
 	"os"
 	"strings"
 )
@@ -218,7 +219,6 @@ func extGCD(a, b int) (int, int, int) {
 }
 
 func mulmod(a, b, m int) int {
-	p := 0
 	sign := 1
 	if a < 0 {
 		a = -a
@@ -230,16 +230,6 @@ func mulmod(a, b, m int) int {
 	}
 	a = a % m
 	b = b % m
-	// let b be smaller for efficiency
-	if a < b {
-		a, b = b, a
-	}
-	for b > 0 {
-		if b&1 != 0 {
-			p = (p + a) % m
-		}
-		a = (a << 1) % m
-		b >>= 1
-	}
-	return p * sign
+	hi, lo := bits.Mul(uint(a), uint(b))
+	return sign * int(bits.Rem(hi, lo, uint(m)))
 }

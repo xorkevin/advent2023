@@ -187,7 +187,7 @@ func crt(a1, m1, a2, m2 int) (int, int, bool) {
 	m2g := m2 / g
 	lcm := m1g * m2
 	// a1 * m2/g * q + a2 * m1/g * p (mod lcm)
-	x := ((((a1*m2g)%lcm)*q)%lcm + (((a2*m1g)%lcm)*p)%lcm) % lcm
+	x := (mulmod(mulmod(a1, m2g, lcm), q, lcm) + mulmod(mulmod(a2, m1g, lcm), p, lcm)) % lcm
 	if x < 0 {
 		x += lcm
 	}
@@ -215,4 +215,31 @@ func extGCD(a, b int) (int, int, int) {
 		x2, y2 = y2, x2
 	}
 	return a, x2, y2
+}
+
+func mulmod(a, b, m int) int {
+	p := 0
+	sign := 1
+	if a < 0 {
+		a = -a
+		sign *= -1
+	}
+	if b < 0 {
+		b = -b
+		sign *= -1
+	}
+	a = a % m
+	b = b % m
+	// let b be smaller for efficiency
+	if a < b {
+		a, b = b, a
+	}
+	for b > 0 {
+		if b&1 != 0 {
+			p = (p + a) % m
+		}
+		a = (a << 1) % m
+		b >>= 1
+	}
+	return p * sign
 }

@@ -66,20 +66,24 @@ func main() {
 		}
 	}
 
-	sum := 0
-	sum2 := 0
+	sd := 0
+	se := 0
 	for n, i := range coords {
 		for _, j := range coords[n+1:] {
-			expansion := calcExpansion(emptyRows, i.y, j.y) + calcExpansion(emptyColumns, i.x, j.x)
-			dist := manhattanDistance(i, j)
-			sum += dist + expansion
-			sum2 += dist + expansion*999999
+			sd += manhattanDistance(i, j)
+			se += calcExpansion(emptyRows, i.y, j.y) + calcExpansion(emptyColumns, i.x, j.x)
 		}
 	}
 
-	fmt.Println("Part 1:", sum)
-	fmt.Println("Part 2:", sum2)
+	fmt.Println("Part 1:", sd+se)
+	fmt.Println("Part 2:", sd+se*999999)
 }
+
+type (
+	Coord struct {
+		x, y int
+	}
+)
 
 func calcExpansion(emptyRows []int, a, b int) int {
 	if a > b {
@@ -105,19 +109,4 @@ func abs(a int) int {
 
 func manhattanDistance(a, b Coord) int {
 	return abs(a.x-b.x) + abs(a.y-b.y)
-}
-
-type (
-	Coord struct {
-		x, y int
-	}
-)
-
-func isEmptyColumn(grid [][]byte, c int) bool {
-	for _, i := range grid {
-		if i[c] == '#' {
-			return false
-		}
-	}
-	return true
 }

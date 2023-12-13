@@ -107,7 +107,7 @@ func findSmudge(grid [][]byte, except int) int {
 func isAlmostMirroredAt(grid [][]byte, r int) bool {
 	height := len(grid)
 	lim := min(height-r, r)
-	count := 0
+	hasDiff := false
 	for i := 0; i < lim; i++ {
 		a := grid[r-i-1]
 		b := grid[r+i]
@@ -115,26 +115,26 @@ func isAlmostMirroredAt(grid [][]byte, r int) bool {
 			if !isEditDistance1(a, b) {
 				return false
 			}
-			count += 1
-			if count > 1 {
+			if hasDiff {
 				return false
 			}
+			hasDiff = true
 		}
 	}
-	return count == 1
+	return hasDiff
 }
 
 func isEditDistance1(a, b []byte) bool {
-	count := 0
+	hasDiff := false
 	for i := range a {
 		if a[i] != b[i] {
-			count += 1
-		}
-		if count > 1 {
-			return false
+			if hasDiff {
+				return false
+			}
+			hasDiff = true
 		}
 	}
-	return count == 1
+	return hasDiff
 }
 
 func findMirror(grid [][]byte) int {

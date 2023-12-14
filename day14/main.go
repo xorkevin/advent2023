@@ -102,7 +102,7 @@ func dropRocks(grid [][]byte, other [][]byte) {
 func dropRock(grid [][]byte, other [][]byte, r, c int) {
 	height := len(grid)
 	rest := r
-	for rest-1 >= 0 {
+	for rest >= 1 {
 		if grid[rest-1][c] != '.' {
 			break
 		}
@@ -117,14 +117,10 @@ func dropRock(grid [][]byte, other [][]byte, r, c int) {
 func cycle(grid [][]byte, other [][]byte) {
 	// west
 	dropRocks(grid, other)
-	grid, other = other, grid
 	// south
-	dropRocks(grid, other)
-	grid, other = other, grid
+	dropRocks(other, grid)
 	// east
 	dropRocks(grid, other)
-	grid, other = other, grid
 	// north
-	dropRocks(grid, other)
-	grid, other = other, grid
+	dropRocks(other, grid)
 }

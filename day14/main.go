@@ -2,10 +2,10 @@ package main
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"fmt"
 	"log"
 	"os"
-	"strings"
 )
 
 const (
@@ -34,10 +34,6 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	dropRocks(grid)
-
-	fmt.Println("Part 1:", scoreRocks(grid))
-
 	height := len(grid)
 	width := len(grid[0])
 	other := make([][]byte, width)
@@ -45,42 +41,36 @@ func main() {
 		other[i] = make([]byte, height)
 	}
 
-	cache := map[string]int{}
+	dropRocks(grid, other)
 
+	fmt.Println("Part 1:", scoreRocks(grid))
+
+	remaining := 0
 	const p2Iterations = 1000000000
-
-	period := 0
-
+	cache := map[string]int{}
 	for i := 0; i < p2Iterations; i++ {
 		cycle(grid, other)
 		s := getState(grid)
 		if n, ok := cache[s]; ok {
 			p := i - n
-			if period == 0 {
-				period = p
-			} else {
-				if p != period {
-					log.Fatalln("Inconsistent fixed point period")
-				}
-				if (p2Iterations-i-1)%p == 0 {
-					break
-				}
-			}
-			cache[s] = i
-		} else {
-			cache[s] = i
+			remaining = (p2Iterations - i - 1) % p
+			break
 		}
+		cache[s] = i
+	}
+	for i := 0; i < remaining; i++ {
+		cycle(grid, other)
 	}
 
 	fmt.Println("Part 2:", scoreRocks(grid))
 }
 
 func getState(grid [][]byte) string {
-	var s strings.Builder
+	h := sha256.New()
 	for _, i := range grid {
-		s.Write(i)
+		h.Write(i)
 	}
-	return s.String()
+	return string(h.Sum(nil))
 }
 
 func scoreRocks(grid [][]byte) int {
@@ -96,17 +86,21 @@ func scoreRocks(grid [][]byte) int {
 	return sum
 }
 
-func dropRocks(grid [][]byte) {
+func dropRocks(grid [][]byte, other [][]byte) {
+	height := len(grid)
 	for r, i := range grid {
 		for c, j := range i {
 			if j == 'O' {
-				dropRock(grid, r, c)
+				dropRock(grid, other, r, c)
+			} else {
+				other[c][height-r-1] = j
 			}
 		}
 	}
 }
 
-func dropRock(grid [][]byte, r, c int) {
+func dropRock(grid [][]byte, other [][]byte, r, c int) {
+	height := len(grid)
 	rest := r
 	for rest-1 >= 0 {
 		if grid[rest-1][c] != '.' {
@@ -116,32 +110,21 @@ func dropRock(grid [][]byte, r, c int) {
 	}
 	grid[r][c] = '.'
 	grid[rest][c] = 'O'
+	other[c][height-r-1] = '.'
+	other[c][height-rest-1] = 'O'
 }
 
 func cycle(grid [][]byte, other [][]byte) {
-	dropRocks(grid)
 	// west
-	rotate(grid, other)
+	dropRocks(grid, other)
 	grid, other = other, grid
-	dropRocks(grid)
 	// south
-	rotate(grid, other)
+	dropRocks(grid, other)
 	grid, other = other, grid
-	dropRocks(grid)
 	// east
-	rotate(grid, other)
+	dropRocks(grid, other)
 	grid, other = other, grid
-	dropRocks(grid)
 	// north
-	rotate(grid, other)
+	dropRocks(grid, other)
 	grid, other = other, grid
-}
-
-func rotate(grid [][]byte, other [][]byte) {
-	height := len(grid)
-	for r, i := range grid {
-		for c, j := range i {
-			other[c][height-r-1] = j
-		}
-	}
 }

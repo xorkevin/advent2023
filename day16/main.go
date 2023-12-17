@@ -36,12 +36,10 @@ func main() {
 	height := len(grid)
 	width := len(grid[0])
 
-	fmt.Println("Part 1:", simulate([]Beam{
-		{
-			x:   0,
-			y:   0,
-			dir: DirEast,
-		},
+	fmt.Println("Part 1:", simulate(Beam{
+		x:   0,
+		y:   0,
+		dir: DirEast,
 	}, width, height, grid))
 
 	fmt.Println("Part 2:", findLargest(width, height, grid))
@@ -50,65 +48,34 @@ func main() {
 func findLargest(width int, height int, grid [][]byte) int {
 	greatest := 0
 	for x := 0; x < width; x++ {
-		m := simulate([]Beam{
-			{
-				x:   x,
-				y:   0,
-				dir: DirSouth,
-			},
+		m := simulate(Beam{
+			x:   x,
+			y:   0,
+			dir: DirSouth,
 		}, width, height, grid)
 		greatest = max(greatest, m)
-		m = simulate([]Beam{
-			{
-				x:   x,
-				y:   height - 1,
-				dir: DirNorth,
-			},
+		m = simulate(Beam{
+			x:   x,
+			y:   height - 1,
+			dir: DirNorth,
 		}, width, height, grid)
 		greatest = max(greatest, m)
 	}
 	for y := 0; y < height; y++ {
-		m := simulate([]Beam{
-			{
-				x:   0,
-				y:   y,
-				dir: DirEast,
-			},
+		m := simulate(Beam{
+			x:   0,
+			y:   y,
+			dir: DirEast,
 		}, width, height, grid)
 		greatest = max(greatest, m)
-		m = simulate([]Beam{
-			{
-				x:   width - 1,
-				y:   y,
-				dir: DirWest,
-			},
+		m = simulate(Beam{
+			x:   width - 1,
+			y:   y,
+			dir: DirWest,
 		}, width, height, grid)
 		greatest = max(greatest, m)
 	}
 	return greatest
-}
-
-func simulate(beams []Beam, w, h int, grid [][]byte) int {
-	hist := make([]bool, w*h)
-
-	beamHist := make([]bool, w*h*4)
-
-	sum := 0
-	for _, i := range beams {
-		key := i.y*w + i.x
-		if ok := hist[key]; !ok {
-			hist[key] = true
-			sum++
-		}
-	}
-
-	for len(beams) > 0 {
-		var s int
-		beams, s = stepBeams(w, h, beams, grid, hist, beamHist)
-		sum += s
-	}
-
-	return sum
 }
 
 type (
@@ -118,7 +85,25 @@ type (
 		x, y int
 		dir  Dir
 	}
+
+	Beams struct {
+		beams []Beam
+	}
 )
+
+func (b *Beams) Push(v Beam) {
+	b.beams = append(b.beams, v)
+}
+
+func (b *Beams) Pop() (Beam, bool) {
+	if len(b.beams) == 0 {
+		return Beam{}, false
+	}
+	l := len(b.beams) - 1
+	v := b.beams[l]
+	b.beams = b.beams[:l]
+	return v, true
+}
 
 const (
 	DirNorth Dir = 0
@@ -127,167 +112,224 @@ const (
 	DirWest  Dir = 3
 )
 
-func stepBeams(w, h int, beams []Beam, grid [][]byte, hist []bool, beamHist []bool) ([]Beam, int) {
+func simulate(start Beam, w, h int, grid [][]byte) int {
+	hist := make([]bool, w*h)
+	beamHist := make([]bool, w*h*4)
+
 	sum := 0
-	res := make([]Beam, 0, len(beams))
-	for _, i := range beams {
-		r := stepBeam(i, grid)
-		for _, j := range r {
-			if isInBounds(j.x, j.y, w, h) {
-				key := ((j.y*w)+j.x)*4 + int(j.dir)
-				if ok := beamHist[key]; !ok {
-					hkey := j.y*w + j.x
-					if ok := hist[hkey]; !ok {
-						hist[hkey] = true
-						sum++
+	beams := &Beams{}
+	beams.Push(start)
+	for len(beams.beams) > 0 {
+		beam, _ := beams.Pop()
+		sum += stepBeam(w, h, beam, beams, grid, hist, beamHist)
+	}
+
+	return sum
+}
+
+func stepBeam(w, h int, beam Beam, beams *Beams, grid [][]byte, hist, beamHist []bool) int {
+	hkey := beam.y*w + beam.x
+	key := hkey*4 + int(beam.dir)
+	if beamHist[key] {
+		return 0
+	}
+	switch grid[beam.y][beam.x] {
+	case '/':
+		{
+			next := beam
+			switch next.dir {
+			case DirNorth:
+				next.x++
+				next.dir = DirEast
+			case DirEast:
+				next.y--
+				next.dir = DirNorth
+			case DirSouth:
+				next.x--
+				next.dir = DirWest
+			case DirWest:
+				next.y++
+				next.dir = DirSouth
+			default:
+				log.Fatalln("Invalid dir")
+			}
+			if isInBounds(next, w, h) {
+				beams.Push(next)
+			}
+		}
+	case '\\':
+		{
+			next := beam
+			switch next.dir {
+			case DirNorth:
+				next.x--
+				next.dir = DirWest
+			case DirEast:
+				next.y++
+				next.dir = DirSouth
+			case DirSouth:
+				next.x++
+				next.dir = DirEast
+			case DirWest:
+				next.y--
+				next.dir = DirNorth
+			default:
+				log.Fatalln("Invalid dir")
+			}
+			if isInBounds(next, w, h) {
+				beams.Push(next)
+			}
+		}
+	case '|':
+		{
+			switch beam.dir {
+			case DirNorth:
+				{
+					next := beam
+					next.y--
+					if isInBounds(next, w, h) {
+						beams.Push(next)
 					}
-					res = append(res, j)
-					beamHist[key] = true
 				}
+			case DirEast:
+				{
+					next := Beam{
+						x:   beam.x,
+						y:   beam.y - 1,
+						dir: DirNorth,
+					}
+					if isInBounds(next, w, h) {
+						beams.Push(next)
+					}
+					next = Beam{
+						x:   beam.x,
+						y:   beam.y + 1,
+						dir: DirSouth,
+					}
+					if isInBounds(next, w, h) {
+						beams.Push(next)
+					}
+				}
+			case DirSouth:
+				{
+					next := beam
+					next.y++
+					if isInBounds(next, w, h) {
+						beams.Push(next)
+					}
+				}
+			case DirWest:
+				{
+					next := Beam{
+						x:   beam.x,
+						y:   beam.y - 1,
+						dir: DirNorth,
+					}
+					if isInBounds(next, w, h) {
+						beams.Push(next)
+					}
+					next = Beam{
+						x:   beam.x,
+						y:   beam.y + 1,
+						dir: DirSouth,
+					}
+					if isInBounds(next, w, h) {
+						beams.Push(next)
+					}
+				}
+			default:
+				log.Fatalln("Invalid dir")
+			}
+		}
+	case '-':
+		{
+			switch beam.dir {
+			case DirNorth:
+				{
+					next := Beam{
+						x:   beam.x - 1,
+						y:   beam.y,
+						dir: DirWest,
+					}
+					if isInBounds(next, w, h) {
+						beams.Push(next)
+					}
+					next = Beam{
+						x:   beam.x + 1,
+						y:   beam.y,
+						dir: DirEast,
+					}
+					if isInBounds(next, w, h) {
+						beams.Push(next)
+					}
+				}
+			case DirEast:
+				{
+					next := beam
+					next.x++
+					if isInBounds(next, w, h) {
+						beams.Push(next)
+					}
+				}
+			case DirSouth:
+				{
+					next := Beam{
+						x:   beam.x - 1,
+						y:   beam.y,
+						dir: DirWest,
+					}
+					if isInBounds(next, w, h) {
+						beams.Push(next)
+					}
+					next = Beam{
+						x:   beam.x + 1,
+						y:   beam.y,
+						dir: DirEast,
+					}
+					if isInBounds(next, w, h) {
+						beams.Push(next)
+					}
+				}
+			case DirWest:
+				{
+					next := beam
+					next.x--
+					if isInBounds(next, w, h) {
+						beams.Push(next)
+					}
+				}
+			default:
+				log.Fatalln("Invalid dir")
+			}
+		}
+	default:
+		{
+			next := beam
+			switch next.dir {
+			case DirNorth:
+				next.y--
+			case DirEast:
+				next.x++
+			case DirSouth:
+				next.y++
+			case DirWest:
+				next.x--
+			default:
+				log.Fatalln("Invalid dir")
+			}
+			if isInBounds(next, w, h) {
+				beams.Push(next)
 			}
 		}
 	}
-	return res, sum
+	beamHist[key] = true
+	if hist[hkey] {
+		return 0
+	}
+	hist[hkey] = true
+	return 1
 }
 
-func isInBounds(x, y int, w, h int) bool {
-	return x >= 0 && y >= 0 && x < w && y < h
-}
-
-func stepBeam(beam Beam, grid [][]byte) []Beam {
-	b := grid[beam.y][beam.x]
-	if b == '/' {
-		next := beam
-		switch beam.dir {
-		case DirNorth:
-			next.x++
-			next.dir = DirEast
-		case DirEast:
-			next.y--
-			next.dir = DirNorth
-		case DirSouth:
-			next.x--
-			next.dir = DirWest
-		case DirWest:
-			next.y++
-			next.dir = DirSouth
-		default:
-			log.Fatalln("Invalid dir")
-		}
-		return []Beam{next}
-	}
-	if b == '\\' {
-		next := beam
-		switch beam.dir {
-		case DirNorth:
-			next.x--
-			next.dir = DirWest
-		case DirEast:
-			next.y++
-			next.dir = DirSouth
-		case DirSouth:
-			next.x++
-			next.dir = DirEast
-		case DirWest:
-			next.y--
-			next.dir = DirNorth
-		default:
-			log.Fatalln("Invalid dir")
-		}
-		return []Beam{next}
-	}
-	if b == '|' {
-		next := beam
-		switch beam.dir {
-		case DirNorth:
-			next.y--
-		case DirEast:
-			return []Beam{
-				{
-					x:   beam.x,
-					y:   beam.y - 1,
-					dir: DirNorth,
-				},
-				{
-					x:   beam.x,
-					y:   beam.y + 1,
-					dir: DirSouth,
-				},
-			}
-		case DirSouth:
-			next.y++
-		case DirWest:
-			return []Beam{
-				{
-					x:   beam.x,
-					y:   beam.y - 1,
-					dir: DirNorth,
-				},
-				{
-					x:   beam.x,
-					y:   beam.y + 1,
-					dir: DirSouth,
-				},
-			}
-		default:
-			log.Fatalln("Invalid dir")
-		}
-		return []Beam{next}
-	}
-	if b == '-' {
-		next := beam
-		switch beam.dir {
-		case DirNorth:
-			return []Beam{
-				{
-					x:   beam.x - 1,
-					y:   beam.y,
-					dir: DirWest,
-				},
-				{
-					x:   beam.x + 1,
-					y:   beam.y,
-					dir: DirEast,
-				},
-			}
-		case DirEast:
-			next.x++
-		case DirSouth:
-			return []Beam{
-				{
-					x:   beam.x - 1,
-					y:   beam.y,
-					dir: DirWest,
-				},
-				{
-					x:   beam.x + 1,
-					y:   beam.y,
-					dir: DirEast,
-				},
-			}
-		case DirWest:
-			next.x--
-		default:
-			log.Fatalln("Invalid dir")
-		}
-		return []Beam{next}
-	}
-	if b == '.' {
-		next := beam
-		switch beam.dir {
-		case DirNorth:
-			next.y--
-		case DirEast:
-			next.x++
-		case DirSouth:
-			next.y++
-		case DirWest:
-			next.x--
-		default:
-			log.Fatalln("Invalid dir")
-		}
-		return []Beam{next}
-	}
-	log.Fatalln("Invalid char")
-	return nil
+func isInBounds(beam Beam, w, h int) bool {
+	return beam.x >= 0 && beam.y >= 0 && beam.x < w && beam.y < h
 }

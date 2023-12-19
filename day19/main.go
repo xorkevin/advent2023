@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"log"
-	"maps"
 	"os"
 	"strconv"
 	"strings"
@@ -55,9 +54,22 @@ func main() {
 						if err != nil {
 							log.Fatalln(err)
 						}
+						var part int
+						switch lhs[:opIdx] {
+						case "x":
+							part = 0
+						case "m":
+							part = 1
+						case "a":
+							part = 2
+						case "s":
+							part = 3
+						default:
+							log.Fatalln("Invalid part name")
+						}
 						rules = append(rules, Rule{
-							Part:   lhs[:opIdx],
-							Op:     string(lhs[opIdx]),
+							Part:   part,
+							Op:     lhs[opIdx],
 							Imm:    imm,
 							Target: rhs,
 						})
@@ -78,7 +90,7 @@ func main() {
 		}
 
 		stateStr := strings.Trim(line, "{}")
-		stateMap := make(map[string]int, len(stateStr))
+		stateMap := [4]int{}
 		rating := 0
 		for _, i := range strings.Split(stateStr, ",") {
 			lhs, rhs, ok := strings.Cut(i, "=")
@@ -89,10 +101,23 @@ func main() {
 			if err != nil {
 				log.Fatalln(err)
 			}
-			stateMap[lhs] = num
+			var part int
+			switch lhs {
+			case "x":
+				part = 0
+			case "m":
+				part = 1
+			case "a":
+				part = 2
+			case "s":
+				part = 3
+			default:
+				log.Fatalln("Invalid part name")
+			}
+			stateMap[part] = num
 			rating += num
 		}
-		if runWorkflows(workflows, stateMap) {
+		if runWorkflows(workflows, "in", stateMap) {
 			sum += rating
 		} else {
 		}
@@ -104,25 +129,28 @@ func main() {
 
 	fmt.Println("Part 1:", sum)
 
-	stateMapRanges := map[string]Range{
-		"x": {
-			Left:  1,
-			Right: 4001,
+	fmt.Println("Part 2:", runWorkflowRanges(
+		workflows,
+		"in",
+		[4]Range{
+			{
+				Left:  1,
+				Right: 4001,
+			},
+			{
+				Left:  1,
+				Right: 4001,
+			},
+			{
+				Left:  1,
+				Right: 4001,
+			},
+			{
+				Left:  1,
+				Right: 4001,
+			},
 		},
-		"m": {
-			Left:  1,
-			Right: 4001,
-		},
-		"a": {
-			Left:  1,
-			Right: 4001,
-		},
-		"s": {
-			Left:  1,
-			Right: 4001,
-		},
-	}
-	fmt.Println("Part 2:", runWorkflowRanges(workflows, "in", stateMapRanges))
+	))
 }
 
 type (
@@ -132,8 +160,8 @@ type (
 	}
 
 	Rule struct {
-		Part   string
-		Op     string
+		Part   int
+		Op     byte
 		Imm    int
 		Target string
 	}
@@ -144,7 +172,7 @@ type (
 	}
 )
 
-func runWorkflowRanges(workflows map[string]Workflow, current string, stateMap map[string]Range) int {
+func runWorkflowRanges(workflows map[string]Workflow, current string, stateMap [4]Range) int {
 	switch current {
 	case "A":
 		{
@@ -163,19 +191,16 @@ func runWorkflowRanges(workflows map[string]Workflow, current string, stateMap m
 	}
 	sum := 0
 	for _, rule := range wf.Rules {
-		if rule.Op != "" {
-			v, ok := stateMap[rule.Part]
-			if !ok {
-				log.Fatalln("Invalid rule part name")
-			}
+		if rule.Op != 0 {
+			v := stateMap[rule.Part]
 			switch rule.Op {
-			case "<":
+			case '<':
 				if v.Right <= rule.Imm {
 					sum += runWorkflowRanges(workflows, rule.Target, stateMap)
 					return sum
 				} else if v.Left >= rule.Imm {
 				} else {
-					childStateMap := maps.Clone(stateMap)
+					childStateMap := stateMap
 					childStateMap[rule.Part] = Range{
 						Left:  v.Left,
 						Right: rule.Imm,
@@ -190,13 +215,13 @@ func runWorkflowRanges(workflows map[string]Workflow, current string, stateMap m
 					}
 					stateMap = childStateMap
 				}
-			case ">":
+			case '>':
 				if v.Left > rule.Imm {
 					sum += runWorkflowRanges(workflows, rule.Target, stateMap)
 					return sum
 				} else if v.Right <= rule.Imm+1 {
 				} else {
-					childStateMap := maps.Clone(stateMap)
+					childStateMap := stateMap
 					childStateMap[rule.Part] = Range{
 						Left:  rule.Imm + 1,
 						Right: v.Right,
@@ -219,47 +244,42 @@ func runWorkflowRanges(workflows map[string]Workflow, current string, stateMap m
 			return sum
 		}
 	}
+	log.Fatalln("Workflow has no default rule")
 	return sum
 }
 
-func runWorkflows(workflows map[string]Workflow, stateMap map[string]int) bool {
-	current := "in"
-outer:
-	for {
-		wf, ok := workflows[current]
-		if !ok {
-			log.Fatalln("Invalid workflow name")
-		}
-		for _, rule := range wf.Rules {
-			if rule.Op != "" {
-				v, ok := stateMap[rule.Part]
-				if !ok {
-					log.Fatalln("Invalid rule part name")
+func runWorkflows(workflows map[string]Workflow, current string, stateMap [4]int) bool {
+	wf, ok := workflows[current]
+	if !ok {
+		log.Fatalln("Invalid workflow name")
+	}
+	for _, rule := range wf.Rules {
+		if rule.Op != 0 {
+			v := stateMap[rule.Part]
+			switch rule.Op {
+			case '<':
+				if v < rule.Imm {
+				} else {
+					continue
 				}
-				switch rule.Op {
-				case "<":
-					if v < rule.Imm {
-					} else {
-						continue
-					}
-				case ">":
-					if v > rule.Imm {
-					} else {
-						continue
-					}
-				default:
-					log.Fatalln("Invalid rule op")
+			case '>':
+				if v > rule.Imm {
+				} else {
+					continue
 				}
-			}
-			switch rule.Target {
-			case "A":
-				return true
-			case "R":
-				return false
 			default:
-				current = rule.Target
-				continue outer
+				log.Fatalln("Invalid rule op")
 			}
+		}
+		switch rule.Target {
+		case "A":
+			return true
+		case "R":
+			return false
+		default:
+			return runWorkflows(workflows, rule.Target, stateMap)
 		}
 	}
+	log.Fatalln("Workflow has no default rule")
+	return false
 }

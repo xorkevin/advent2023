@@ -27,6 +27,12 @@ func main() {
 
 	var lines []Line
 
+	first := true
+	minX := 0
+	maxX := 0
+	minY := 0
+	maxY := 0
+
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -74,10 +80,23 @@ func main() {
 			lhsPos, rhsPos = rhsPos, lhsPos
 		}
 		lines = append(lines, Line{
-			name: len(lines),
-			a:    lhsPos,
-			b:    rhsPos,
+			a:      lhsPos,
+			b:      rhsPos,
+			height: rhsPos.z - lhsPos.z,
 		})
+
+		if first {
+			first = false
+			minX = lhsPos.x
+			minY = lhsPos.y
+			maxX = rhsPos.x
+			maxY = rhsPos.y
+		} else {
+			minX = min(minX, lhsPos.x)
+			minY = min(minY, lhsPos.y)
+			maxX = max(maxX, rhsPos.x)
+			maxY = max(maxY, rhsPos.y)
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -88,12 +107,18 @@ func main() {
 		return posLess(a.a, b.a)
 	})
 
+	xwidth := maxX - minX + 1
+	ywidth := maxY - minY + 1
+
 	count := 0
 	sum := 0
-	fullTower := getTower(lines, -1)
+	heightMap := make([]int, xwidth*ywidth)
+	fullTower := make([]Line, len(lines))
+	getTower(minX, minY, xwidth, heightMap, lines, -1, fullTower)
+	candidate := make([]Line, len(lines))
 	for n := range lines {
-		t := getTower(lines, n)
-		delta := towerDelta(fullTower, t, n)
+		getTower(minX, minY, xwidth, heightMap, lines, n, candidate)
+		delta := towerDelta(fullTower, candidate, n)
 		if delta == 0 {
 			count++
 		}
@@ -116,40 +141,45 @@ func towerDelta(a, b []Line, except int) int {
 	return count
 }
 
-func getTower(lines []Line, except int) []Line {
-	next := make([]Line, 0, len(lines))
-	heightMap := map[Vec2]int{}
+func getTower(minx, miny, xwidth int, heightMap []int, lines []Line, except int, next []Line) {
 	for n, i := range lines {
 		if n == except {
-			next = append(next, Line{})
 			continue
 		}
 		highest := 0
 		for y := i.a.y; y <= i.b.y; y++ {
 			for x := i.a.x; x <= i.b.x; x++ {
-				h, ok := heightMap[Vec2{x: x, y: y}]
-				if !ok {
-					continue
-				}
+				key := posKey(x, y, minx, miny, xwidth)
+				h := heightMap[key]
 				if h > highest {
 					highest = h
 				}
 			}
 		}
-		height := i.b.z - i.a.z
 		i.a.z = highest + 1
-		i.b.z = i.a.z + height
-		next = append(next, Line{
+		i.b.z = i.a.z + i.height
+		next[n] = Line{
 			a: i.a,
 			b: i.b,
-		})
+		}
 		for y := i.a.y; y <= i.b.y; y++ {
 			for x := i.a.x; x <= i.b.x; x++ {
-				heightMap[Vec2{x: x, y: y}] = i.b.z
+				key := posKey(x, y, minx, miny, xwidth)
+				heightMap[key] = i.b.z
 			}
 		}
 	}
-	return next
+	clearHeightMap(heightMap)
+}
+
+func posKey(x, y, minx, miny, xwidth int) int {
+	return (y-miny)*xwidth + x - minx
+}
+
+func clearHeightMap(a []int) {
+	for i := range a {
+		a[i] = 0
+	}
 }
 
 func posLess(a, b Pos) int {
@@ -164,20 +194,11 @@ func posLess(a, b Pos) int {
 
 type (
 	Line struct {
-		name int
-		a, b Pos
+		a, b   Pos
+		height int
 	}
 
 	Pos struct {
 		x, y, z int
-	}
-
-	Vec2 struct {
-		x, y int
-	}
-
-	Terrain struct {
-		name int
-		h    int
 	}
 )

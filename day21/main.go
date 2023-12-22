@@ -41,50 +41,99 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	fmt.Println("Part 1:", getNum(grid, start, 64))
-
 	height := len(grid)
 	width := len(grid[0])
-	if height != width {
-		log.Fatalln("Grid is not square")
-	}
-	target := 26501365
+	const target = 26501365
 	multiple := target / height
 	rem := target % height
-	a0 := getNum(grid, start, rem)
-	a1 := getNum(grid, start, height+rem)
-	a2 := getNum(grid, start, height*2+rem)
 
-	delta1 := a1 - a0
-	delta2 := a2 - a1
-	delta3 := delta2 - delta1
-	a := delta3 / 2
-	b := delta1 - 3*a
-	c := a0 - a - b
+	innerEven := 0
+	innerOdd := 0
+	cornerEven := 0
+	cornerOdd := 0
 
-	seqNum := multiple + 1
-
-	fmt.Println("Part 2:", seqNum*seqNum*a+seqNum*b+c)
-}
-
-func getNum(grid [][]byte, start Pos, target int) int {
-	closedSet := map[Pos]struct{}{}
-	openSet := NewStateVec()
-	openSet.Push(State{pos: start, g: 0})
-	for !openSet.IsEmpty() {
-		s, _ := openSet.Pop()
-		if s.g >= target {
-			closedSet[s.pos] = struct{}{}
-			continue
+	closedSet := make([]bool, width*height)
+	openSet := NewRing[State](width * height)
+	closedSet[start.y*width+start.x] = true
+	openSet.Write(State{
+		pos: start,
+		g:   0,
+	})
+	const p1Target = 64
+	const p1TargetIsEven = p1Target%2 == 0
+	sum := 0
+	for {
+		s, ok := openSet.Read()
+		if !ok {
+			break
 		}
-		for _, i := range getNeighbors(grid, s.pos) {
-			openSet.Push(State{
+		closedSet[s.pos.y*width+s.pos.x] = true
+		curIsEven := s.g%2 == 0
+		if manhattanDistance(s.pos, start) > rem {
+			if curIsEven {
+				cornerEven++
+			} else {
+				cornerOdd++
+			}
+		} else {
+			if curIsEven {
+				innerEven++
+			} else {
+				innerOdd++
+			}
+		}
+		if s.g <= p1Target && curIsEven == p1TargetIsEven {
+			sum++
+		}
+		var neighbors [4]Pos
+		n := getNeighbors(grid, width, height, s.pos, neighbors[:])
+		for _, i := range neighbors[:n] {
+			key := i.y*width + i.x
+			if closedSet[key] {
+				continue
+			}
+			closedSet[key] = true
+			openSet.Write(State{
 				pos: i,
 				g:   s.g + 1,
 			})
 		}
 	}
-	return len(closedSet)
+	fmt.Println("Part 1:", sum)
+
+	if height != width {
+		log.Fatalln("Grid is not square")
+	}
+	if start.x != rem || start.y != rem {
+		log.Fatalln("Start is not centered")
+	}
+
+	const targetIsEven = target%2 == 0
+	multipleIsEven := multiple%2 == 0
+	multiple1 := multiple + 1
+	outerMultiple := multiple1 * multiple1
+	innerMultiple := multiple * multiple
+
+	outerDiamond := innerOdd
+	innerDiamond := innerEven
+	outerCorner := cornerOdd
+	innerCorner := cornerEven
+	if targetIsEven == multipleIsEven {
+		outerDiamond, innerDiamond = innerDiamond, outerDiamond
+		outerCorner, innerCorner = innerCorner, outerCorner
+	}
+	fmt.Println("Part 2:", outerMultiple*outerDiamond+innerMultiple*innerDiamond+(outerMultiple-multiple1)*outerCorner+(innerMultiple+multiple)*innerCorner)
+}
+
+func manhattanDistance(a, b Pos) int {
+	return abs(a.x-b.x) + abs(a.y-b.y)
+}
+
+func abs(a int) int {
+	if a < 0 {
+		return -a
+	}
+	return a
 }
 
 type (
@@ -98,91 +147,111 @@ type (
 	}
 )
 
-func getNeighbors(grid [][]byte, pos Pos) []Pos {
-	res := make([]Pos, 0, 4)
+func getNeighbors(grid [][]byte, w, h int, pos Pos, res []Pos) int {
+	count := 0
 	{
-		v := Pos{
-			x: pos.x,
-			y: pos.y - 1,
-		}
-		if getOnTorus(grid, v) != '#' {
-			res = append(res, v)
+		v := pos
+		v.y--
+		if inBounds(v, w, h) && grid[v.y][v.x] != '#' {
+			res[count] = v
+			count++
 		}
 	}
 	{
-		v := Pos{
-			x: pos.x - 1,
-			y: pos.y,
-		}
-		if getOnTorus(grid, v) != '#' {
-			res = append(res, v)
-		}
-	}
-	{
-		v := Pos{
-			x: pos.x,
-			y: pos.y + 1,
-		}
-		if getOnTorus(grid, v) != '#' {
-			res = append(res, v)
+		v := pos
+		v.x--
+		if inBounds(v, w, h) && grid[v.y][v.x] != '#' {
+			res[count] = v
+			count++
 		}
 	}
 	{
-		v := Pos{
-			x: pos.x + 1,
-			y: pos.y,
-		}
-		if getOnTorus(grid, v) != '#' {
-			res = append(res, v)
+		v := pos
+		v.y++
+		if inBounds(v, w, h) && grid[v.y][v.x] != '#' {
+			res[count] = v
+			count++
 		}
 	}
-	return res
+	{
+		v := pos
+		v.x++
+		if inBounds(v, w, h) && grid[v.y][v.x] != '#' {
+			res[count] = v
+			count++
+		}
+	}
+	return count
 }
 
-func getOnTorus(grid [][]byte, pos Pos) byte {
-	height := len(grid)
-	width := len(grid[0])
-	y := pos.y % height
-	if y < 0 {
-		y += height
-	}
-	x := pos.x % width
-	if x < 0 {
-		x += width
-	}
-	return grid[y][x]
+func inBounds(pos Pos, w, h int) bool {
+	return pos.x >= 0 && pos.y >= 0 && pos.x < w && pos.y < h
 }
 
 type (
-	StateVec struct {
-		states  []State
-		holding map[State]struct{}
+	Ring[T any] struct {
+		buf []T
+		r   int
+		w   int
 	}
 )
 
-func NewStateVec() *StateVec {
-	return &StateVec{
-		holding: map[State]struct{}{},
+func NewRing[T any](size int) *Ring[T] {
+	if size < 2 {
+		size = 2
+	}
+	return &Ring[T]{
+		buf: make([]T, size),
+		r:   0,
+		w:   0,
 	}
 }
 
-func (s *StateVec) Push(v State) {
-	if _, ok := s.holding[v]; ok {
+func (b *Ring[T]) resize() {
+	next := make([]T, len(b.buf)*2)
+	if b.r == b.w {
+		b.w = 0
+	} else if b.r < b.w {
+		b.w = copy(next, b.buf[b.r:b.w])
+	} else {
+		p := copy(next, b.buf[b.r:])
+		q := 0
+		if b.w > 0 {
+			q = copy(next[p:], b.buf[:b.w])
+		}
+		b.w = p + q
+	}
+	b.buf = next
+	b.r = 0
+}
+
+func (b *Ring[T]) Write(m T) {
+	next := (b.w + 1) % len(b.buf)
+	if next == b.r {
+		b.resize()
+		b.Write(m)
 		return
 	}
-	s.states = append(s.states, v)
-	s.holding[v] = struct{}{}
+	b.buf[b.w] = m
+	b.w = next
 }
 
-func (s *StateVec) Pop() (State, bool) {
-	if len(s.states) == 0 {
-		return State{}, false
+func (b *Ring[T]) Read() (T, bool) {
+	if b.r == b.w {
+		var v T
+		return v, false
 	}
-	v := s.states[len(s.states)-1]
-	s.states = s.states[:len(s.states)-1]
-	return v, true
+	next := (b.r + 1) % len(b.buf)
+	m := b.buf[b.r]
+	b.r = next
+	return m, true
 }
 
-func (s *StateVec) IsEmpty() bool {
-	return len(s.states) == 0
+func (b *Ring[T]) Peek() (T, bool) {
+	if b.r == b.w {
+		var v T
+		return v, false
+	}
+	m := b.buf[b.r]
+	return m, true
 }

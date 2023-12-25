@@ -87,17 +87,13 @@ func main() {
 	rest := stones[2:]
 	ta, tb := 130621773037, 423178590960
 	if candidate, ok := getCandidate(posAt(a, ta), posAt(b, tb), ta, tb); ok {
-		fmt.Println(candidate)
 		if willCollideAll(candidate, rest) {
-			fmt.Println(ta, tb, 0)
 			fmt.Println("Part 2:", candidate.pos[0]+candidate.pos[1]+candidate.pos[2])
 			return
 		}
 	}
 	if candidate, ok := getCandidate(posAt(b, ta), posAt(a, tb), ta, tb); ok {
-		fmt.Println(candidate)
 		if willCollideAll(candidate, rest) {
-			fmt.Println(ta, tb, 1)
 			fmt.Println("Part 2:", candidate.pos[0]+candidate.pos[1]+candidate.pos[2])
 			return
 		}

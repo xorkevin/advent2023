@@ -25,7 +25,4 @@ for n, line in enumerate(lines):
 
 print(s.check())
 model = s.model()
-print(sum(model[i].as_long() for i in xarr))
-print([model[i].as_long() for i in tarr])
-print([model[i].as_long() for i in xarr])
-print([model[i].as_long() for i in varr])
+print(model.eval(xarr[0] + xarr[1] + xarr[2]))

@@ -82,96 +82,52 @@ func main() {
 	}
 	fmt.Println("Part 1:", count)
 
-	a := stones[0]
-	b := stones[1]
-	rest := stones[2:]
-	ta, tb := 130621773037, 423178590960
-	if candidate, ok := getCandidate(posAt(a, ta), posAt(b, tb), ta, tb); ok {
-		if willCollideAll(candidate, rest) {
-			fmt.Println("Part 2:", candidate.pos[0]+candidate.pos[1]+candidate.pos[2])
-			return
-		}
+	matrix := make([][]float64, 4)
+	for i := range matrix {
+		matrix[i] = matrixLine(stones[i], stones[i+1])
 	}
-	if candidate, ok := getCandidate(posAt(b, ta), posAt(a, tb), ta, tb); ok {
-		if willCollideAll(candidate, rest) {
-			fmt.Println("Part 2:", candidate.pos[0]+candidate.pos[1]+candidate.pos[2])
-			return
-		}
+	res, ok := gaussianElimination(matrix)
+	if !ok {
+		log.Fatalln("Unable to find exact solution")
 	}
+	x := int(math.Round(res[0]))
+	y := int(math.Round(res[1]))
+	vx := int(math.Round(res[2]))
+	c0, t0, ok := matrixLine2(x, vx, stones[0])
+	if !ok {
+		log.Fatalln("Solution is non-integer")
+	}
+	c1, t1, ok := matrixLine2(x, vx, stones[1])
+	if !ok {
+		log.Fatalln("Solution is non-integer")
+	}
+	dc := c0 - c1
+	dt := t0 - t1
+	if dc%dt != 0 {
+		log.Fatalln("Solution is non-integer")
+	}
+	vz := dc / dt
+	z := (stones[0].vel[2]-vz)*t0 + stones[0].pos[2]
+	fmt.Println("Part 2:", x+y+z)
 }
 
-func getCandidate(a, b [3]int, ta, tb int) (Stone, bool) {
-	dt := tb - ta
-	dp := [3]int{
-		b[0] - a[0],
-		b[1] - a[1],
-		b[2] - a[2],
+func matrixLine2(x, vx int, a Stone) (int, int, bool) {
+	dx := x - a.pos[0]
+	dv := a.vel[0] - vx
+	if dx%dv != 0 {
+		return 0, 0, false
 	}
-	if dp[0]%dt != 0 {
-		return Stone{}, false
-	}
-	if dp[1]%dt != 0 {
-		return Stone{}, false
-	}
-	if dp[2]%dt != 0 {
-		return Stone{}, false
-	}
-	vel := [3]int{
-		dp[0] / dt,
-		dp[1] / dt,
-		dp[2] / dt,
-	}
-	pos := [3]int{
-		a[0] - vel[0]*ta,
-		a[1] - vel[1]*ta,
-		a[2] - vel[2]*ta,
-	}
-	return Stone{
-		pos: pos,
-		vel: vel,
-	}, true
+	t := dx / dv
+	return a.pos[2] + t*a.vel[2], t, true
 }
 
-func willCollideAll(candidate Stone, stones []Stone) bool {
-	for n, i := range stones {
-		if !willCollide(candidate, i) {
-			fmt.Println("failed on n", n)
-			return false
-		}
-	}
-	return true
-}
-
-func willCollide(a, b Stone) bool {
-	t := -1
-	for n, i := range a.pos {
-		dv := b.vel[n] - a.vel[n]
-		dx := i - b.pos[n]
-		if dv == 0 {
-			if dx != 0 {
-				return false
-			}
-			continue
-		}
-		if t < 0 {
-			t = dx / dv
-			if t < 0 {
-				return false
-			}
-			continue
-		}
-		if i+a.vel[n]*t != b.pos[n]+b.vel[n]*t {
-			return false
-		}
-	}
-	return true
-}
-
-func posAt(stone Stone, t int) [3]int {
-	return [3]int{
-		stone.pos[0] + stone.vel[0]*t,
-		stone.pos[1] + stone.vel[1]*t,
-		stone.pos[2] + stone.vel[2]*t,
+func matrixLine(a, b Stone) []float64 {
+	return []float64{
+		float64(a.vel[1] - b.vel[1]),
+		float64(b.vel[0] - a.vel[0]),
+		float64(b.pos[1] - a.pos[1]),
+		float64(a.pos[0] - b.pos[0]),
+		float64(a.pos[0]*a.vel[1] - a.pos[1]*a.vel[0] - b.pos[0]*b.vel[1] + b.pos[1]*b.vel[0]),
 	}
 }
 
@@ -210,3 +166,69 @@ type (
 		x, y, z int
 	}
 )
+
+func gaussianElimination(matrix [][]float64) ([]float64, bool) {
+	m := len(matrix)
+	n := len(matrix[0])
+	if n != m+1 {
+		// invalid augmented matrix size
+		return nil, false
+	}
+	if !forwardElim(matrix) {
+		return nil, false
+	}
+	res := make([]float64, m)
+	for i := m - 1; i >= 0; i-- {
+		x := matrix[i][m]
+		for j := i + 1; j < m; j++ {
+			x -= matrix[i][j] * res[j]
+		}
+		res[i] = x / matrix[i][i]
+	}
+	return res, true
+}
+
+func forwardElim(matrix [][]float64) bool {
+	m := len(matrix)
+	n := len(matrix[0])
+	for k := 0; k < m && k < n; k++ {
+		imax := k
+		amax := abs(matrix[imax][k])
+		for i := k + 1; i < m; i++ {
+			if v := abs(matrix[i][k]); v > amax {
+				amax = v
+				imax = i
+			}
+		}
+		if amax == 0 {
+			// singular matrix, so not guaranteed to be satisfiable or have unique
+			// solutions
+			return false
+		}
+		if imax != k {
+			swapRows(matrix, k, n, k, imax)
+		}
+		first := matrix[k][k]
+		for i := k + 1; i < m; i++ {
+			f := matrix[i][k] / first
+			matrix[i][k] = 0
+			for j := k + 1; j < n; j++ {
+				matrix[i][j] -= matrix[k][j] * f
+			}
+		}
+	}
+	return true
+}
+
+func swapRows(matrix [][]float64, k, n, a, b int) {
+	for i := k; i < n; i++ {
+		matrix[a][k], matrix[b][k] = matrix[b][k], matrix[a][k]
+	}
+}
+
+func abs(a float64) float64 {
+	if a < 0 {
+		return -a
+	}
+	return a
+}

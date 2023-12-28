@@ -16,9 +16,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for line in reader.lines() {
         let line = line?;
-        let (p1, p2) = line.rsplit_once(" ").ok_or("Invalid line")?;
+        let (p1, p2) = line.rsplit_once(' ').ok_or("Invalid line")?;
         {
-            let (dir_str, num_str) = p1.split_once(" ").ok_or("Invalid line")?;
+            let (dir_str, num_str) = p1.split_once(' ').ok_or("Invalid line")?;
             let dir = dir_str.as_bytes()[0];
             let num = num_str.parse::<isize>()?;
             current = move_dir(current, dir, num);

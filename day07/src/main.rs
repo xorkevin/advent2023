@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .lines()
         .map(|line| {
             let line = line?;
-            let (a, b) = line.split_once(" ").ok_or("Invalid line")?;
+            let (a, b) = line.split_once(' ').ok_or("Invalid line")?;
             if a.len() != 5 {
                 return Err("Invalid hand".into());
             }

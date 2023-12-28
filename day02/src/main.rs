@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .and_then(|v| v.as_str().parse::<u32>().ok())
             .ok_or("Invalid game num")?;
         for v in b.split("; ").flat_map(|v| v.split(", ")) {
-            let (a, b) = v.split_once(" ").ok_or("Invalid cubes")?;
+            let (a, b) = v.split_once(' ').ok_or("Invalid cubes")?;
             let count = a.parse::<u32>()?;
             match b {
                 "red" => {

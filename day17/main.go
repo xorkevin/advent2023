@@ -44,8 +44,8 @@ func main() {
 		x: w - 1,
 		y: h - 1,
 	}
-	fmt.Println(search(start, end, grid, w, h))
-	fmt.Println(search2(start, end, grid, w, h))
+	fmt.Println("Part 1:", search(start, end, grid, w, h))
+	fmt.Println("Part 2:", search2(start, end, grid, w, h))
 }
 
 type (

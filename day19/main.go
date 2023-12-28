@@ -119,7 +119,6 @@ func main() {
 		}
 		if runWorkflows(workflows, "in", stateMap) {
 			sum += rating
-		} else {
 		}
 	}
 

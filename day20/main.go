@@ -80,15 +80,15 @@ func main() {
 			From: "",
 			Sig:  false,
 		})
-		hi, lo, targetPackets := runTilEnd(comMods, "dg", true)
+		hi, lo, targetPackets := runTilEnd(comMods, "dg")
 		sumHi += hi
 		sumLo += lo
 		idx++
 		for _, i := range targetPackets {
-			if c, ok := targetCycles[i.From]; ok {
+			if c, ok := targetCycles[i]; ok {
 				if c.Size == 0 {
 					cycle := idx - c.Prev
-					targetCycles[i.From] = Cycle{
+					targetCycles[i] = Cycle{
 						Prev: idx,
 						Size: cycle,
 						Rem:  idx % cycle,
@@ -99,10 +99,10 @@ func main() {
 						log.Fatalln("Multiple cycle lengths")
 					}
 					c.Prev = idx
-					targetCycles[i.From] = c
+					targetCycles[i] = c
 				}
 			} else {
-				targetCycles[i.From] = Cycle{
+				targetCycles[i] = Cycle{
 					Prev: idx,
 				}
 			}
@@ -116,13 +116,13 @@ func main() {
 			From: "",
 			Sig:  false,
 		})
-		_, _, targetPackets := runTilEnd(comMods, "dg", true)
+		_, _, targetPackets := runTilEnd(comMods, "dg")
 		idx++
 		for _, i := range targetPackets {
-			if c, ok := targetCycles[i.From]; ok {
+			if c, ok := targetCycles[i]; ok {
 				if c.Size == 0 {
 					cycle := idx - c.Prev
-					targetCycles[i.From] = Cycle{
+					targetCycles[i] = Cycle{
 						Prev: idx,
 						Size: cycle,
 						Rem:  idx % cycle,
@@ -133,29 +133,29 @@ func main() {
 						log.Fatalln("Multiple cycle lengths")
 					}
 					c.Prev = idx
-					targetCycles[i.From] = c
+					targetCycles[i] = c
 				}
 			} else {
-				targetCycles[i.From] = Cycle{
+				targetCycles[i] = Cycle{
 					Prev: idx,
 				}
 			}
 		}
 	}
 
-	a, m := 0, 0
+	a, m := uint(0), uint(0)
 	for _, v := range targetCycles {
 		if m == 0 {
-			a, m = v.Rem, v.Size
+			a, m = uint(v.Rem), uint(v.Size)
 			continue
 		}
 		var ok bool
-		a, m, ok = crt(a, m, v.Rem, v.Size)
+		a, m, ok = crt(a, m, uint(v.Rem), uint(v.Size))
 		if !ok {
 			log.Fatalln("Unsolvable constraints")
 		}
 	}
-	if a <= 0 {
+	if a == 0 {
 		a += m
 	}
 	fmt.Println("Part 2:", a)
@@ -183,8 +183,8 @@ type (
 	}
 )
 
-func runTilEnd(comMods map[string]*ComMod, target string, targetSig bool) (int, int, []Packet) {
-	var packetsToTarget []Packet
+func runTilEnd(comMods map[string]*ComMod, target string) (int, int, []string) {
+	var packetsToTarget []string
 	hi, lo := 0, 0
 	for {
 		hasSig := false
@@ -194,10 +194,8 @@ func runTilEnd(comMods map[string]*ComMod, target string, targetSig bool) (int, 
 				if !ok {
 					break
 				}
-				if v.Name == target {
-					if packet.Sig == targetSig {
-						packetsToTarget = append(packetsToTarget, packet)
-					}
+				if v.Name == target && packet.Sig {
+					packetsToTarget = append(packetsToTarget, packet.From)
 				}
 				if packet.Sig {
 					hi++
@@ -226,10 +224,7 @@ func pulse(comMods map[string]*ComMod, name string, packet Packet) {
 				return
 			}
 			cm.State = !cm.State
-			destSig := false
-			if cm.State {
-				destSig = true
-			}
+			destSig := cm.State
 			for _, i := range cm.Dest {
 				if _, ok := comMods[i]; !ok {
 					log.Fatalln("Invalid dest")
@@ -244,13 +239,16 @@ func pulse(comMods map[string]*ComMod, name string, packet Packet) {
 		{
 			cm.Mem[packet.From] = packet.Sig
 			destSig := false
-			for _, v := range cm.Mem {
-				if !v {
-					destSig = true
-					break
+			if !packet.Sig {
+				destSig = true
+			} else {
+				for _, v := range cm.Mem {
+					if !v {
+						destSig = true
+						break
+					}
 				}
 			}
-			cm.State = destSig
 			for _, i := range cm.Dest {
 				if _, ok := comMods[i]; !ok {
 					log.Fatalln("Invalid dest")
@@ -263,7 +261,6 @@ func pulse(comMods map[string]*ComMod, name string, packet Packet) {
 		}
 	case 0:
 		{
-			cm.State = packet.Sig
 			for _, i := range cm.Dest {
 				if _, ok := comMods[i]; !ok {
 					log.Fatalln("Invalid dest")
@@ -281,23 +278,22 @@ func pulse(comMods map[string]*ComMod, name string, packet Packet) {
 	}
 }
 
-func crt(a1, m1, a2, m2 int) (int, int, bool) {
-	g, p, q := extGCD(m1, m2)
+func crt(a1, m1, a2, m2 uint) (uint, uint, bool) {
+	g, p1, q1 := extGCD(m1, m2)
 	if a1%g != a2%g {
 		return 0, 0, false
 	}
 	m1g := m1 / g
 	m2g := m2 / g
 	lcm := m1g * m2
+	p := uint((p1%int(lcm))+int(lcm)) % lcm
+	q := uint((q1%int(lcm))+int(lcm)) % lcm
 	// a1 * m2/g * q + a2 * m1/g * p (mod lcm)
 	x := (mulmod(mulmod(a1, m2g, lcm), q, lcm) + mulmod(mulmod(a2, m1g, lcm), p, lcm)) % lcm
-	if x < 0 {
-		x += lcm
-	}
 	return x, lcm, true
 }
 
-func extGCD(a, b int) (int, int, int) {
+func extGCD(a, b uint) (uint, int, int) {
 	x2 := 1
 	x1 := 0
 	y2 := 0
@@ -311,8 +307,8 @@ func extGCD(a, b int) (int, int, int) {
 	for b > 0 {
 		q := a / b
 		a, b = b, a%b
-		x2, x1 = x1, x2-q*x1
-		y2, y1 = y1, y2-q*y1
+		x2, x1 = x1, x2-int(q)*x1
+		y2, y1 = y1, y2-int(q)*y1
 	}
 	if flip {
 		x2, y2 = y2, x2
@@ -320,20 +316,11 @@ func extGCD(a, b int) (int, int, int) {
 	return a, x2, y2
 }
 
-func mulmod(a, b, m int) int {
-	sign := 1
-	if a < 0 {
-		a = -a
-		sign *= -1
-	}
-	if b < 0 {
-		b = -b
-		sign *= -1
-	}
+func mulmod(a, b, m uint) uint {
 	a = a % m
 	b = b % m
 	hi, lo := bits.Mul(uint(a), uint(b))
-	return sign * int(bits.Rem(hi, lo, uint(m)))
+	return bits.Rem(hi, lo, uint(m))
 }
 
 type (

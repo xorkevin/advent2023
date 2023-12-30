@@ -36,7 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         p2: false,
     };
 
-    let p1 = astar(
+    let (_, p1) = astar(
         Node {
             value: State {
                 pos: start,
@@ -47,8 +47,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             f: manhattan_distance(&start, &goal),
         },
         &graph,
-        ParentSetNoop {},
-        ClosedSetVec {
+        &mut ParentSetNoop {},
+        &mut ClosedSetVec {
             w,
             vec: vec![0; w * h],
         },
@@ -57,7 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     graph.p2 = true;
 
-    let p2 = astar(
+    let (_, p2) = astar(
         Node {
             value: State {
                 pos: start,
@@ -68,15 +68,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             f: manhattan_distance(&start, &goal),
         },
         &graph,
-        ParentSetNoop {},
-        ClosedSetVec {
+        &mut ParentSetNoop {},
+        &mut ClosedSetVec {
             w,
             vec: vec![0; w * h],
         },
     )
     .ok_or("No path to goal")?;
 
-    println!("Part 1: {}\nPart 2: {}", p1, p2,);
+    println!("Part 1: {}\nPart 2: {}", p1, p2);
 
     Ok(())
 }
@@ -304,9 +304,9 @@ trait ClosedSet<T> {
 fn astar<T: Eq>(
     start: Node<T>,
     graph: &impl Graph<T>,
-    mut parent_set: impl ParentSet<T>,
-    mut closed_set: impl ClosedSet<T>,
-) -> Option<usize> {
+    parent_set: &mut impl ParentSet<T>,
+    closed_set: &mut impl ClosedSet<T>,
+) -> Option<(T, usize)> {
     let mut open_set = BinaryHeap::new();
     open_set.push(Reverse(start));
     let mut edges = Vec::new();
@@ -319,7 +319,7 @@ fn astar<T: Eq>(
             continue;
         }
         if graph.is_goal(&current.value) {
-            return Some(current.g);
+            return Some((current.value, current.g));
         }
         graph.get_edges(&current.value, &mut edges);
         while let Some(edge) = edges.pop() {

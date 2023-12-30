@@ -104,7 +104,7 @@ func main() {
 	if height != width {
 		log.Fatalln("Grid is not square")
 	}
-	if start.x != rem || start.y != rem {
+	if height%2 != 1 || start.y != (height-1)/2 || start.x != start.y {
 		log.Fatalln("Start is not centered")
 	}
 

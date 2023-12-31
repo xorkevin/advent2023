@@ -310,28 +310,24 @@ fn astar<T: Eq>(
     let mut open_set = BinaryHeap::new();
     open_set.push(Reverse(start));
     let mut edges = Vec::new();
-    loop {
-        let current = match open_set.pop() {
-            Some(v) => v.0,
-            None => return None,
-        };
-        if closed_set.contains(&current.value) {
+    while let Some(Reverse(cur)) = open_set.pop() {
+        if closed_set.contains(&cur.value) {
             continue;
         }
-        if graph.is_goal(&current.value) {
-            return Some((current.value, current.g));
+        if graph.is_goal(&cur.value) {
+            return Some((cur.value, cur.g));
         }
-        graph.get_edges(&current.value, &mut edges);
+        graph.get_edges(&cur.value, &mut edges);
         while let Some(edge) = edges.pop() {
-            if edge.value == current.value || closed_set.contains(&edge.value) {
+            if edge.value == cur.value || closed_set.contains(&edge.value) {
                 continue;
             }
-            let g = current.g + edge.cost;
+            let g = cur.g + edge.cost;
             if match parent_set.get(&edge.value) {
                 Some(v) => g < v,
                 None => true,
             } {
-                parent_set.insert(&edge.value, g, &current.value);
+                parent_set.insert(&edge.value, g, &cur.value);
                 open_set.push(Reverse(Node {
                     value: edge.value,
                     g,
@@ -339,6 +335,7 @@ fn astar<T: Eq>(
                 }));
             }
         }
-        closed_set.insert(current.value);
+        closed_set.insert(cur.value);
     }
+    None
 }

@@ -1,6 +1,8 @@
-use std::cmp::Ordering;
+use std::cmp::{Ordering, Reverse};
+use std::collections::BinaryHeap;
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
+use std::slice::Iter;
 
 const PUZZLEINPUT: &str = "input.txt";
 
@@ -60,15 +62,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
     }
 
-    lines.sort_by(|a, b| cmp_pos(&a.from, &b.from));
+    lines.sort_unstable_by(|a, b| cmp_pos(&a.from, &b.from));
 
     let xw = (max_x - min_x + 1) as usize;
     let yw = (max_y - min_y + 1) as usize;
 
-    let mut count = 0;
-    let mut sum = 0;
-
-    let mut height_map = vec![0; xw * yw];
     let mut full_tower = vec![
         Line {
             from: Pos { x: 0, y: 0, z: 0 },
@@ -77,36 +75,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         lines.len()
     ];
-    place_tower(
-        min_x,
-        min_y,
-        xw,
-        &mut height_map,
-        &lines,
-        lines.len(),
-        &mut full_tower,
+    let (p1, support_up, support_by) =
+        place_tower(min_x, min_y, xw, yw, &lines, lines.len(), &mut full_tower);
+    let mut closed_set = VecBitSet::new(lines.len());
+    let mut collapse_set = VecBitSet::new(lines.len());
+    let mut open_set = BinaryHeap::new();
+    println!(
+        "Part 1: {}\nPart 2: {}",
+        p1,
+        (0..lines.len()).fold(0, |acc, i| {
+            acc + cascade_tower(
+                &support_up,
+                &support_by,
+                &mut closed_set,
+                &mut collapse_set,
+                &mut open_set,
+                i,
+            )
+        })
     );
-    clear_height_map(&mut height_map);
-    let mut candidate = vec![
-        Line {
-            from: Pos { x: 0, y: 0, z: 0 },
-            to: Pos { x: 0, y: 0, z: 0 },
-            height: 0
-        };
-        lines.len()
-    ];
-    for i in 0..lines.len() {
-        place_tower(min_x, min_y, xw, &mut height_map, &lines, i, &mut candidate);
-        clear_height_map(&mut height_map);
-        let delta = get_tower_delta(&full_tower, &candidate, i);
-        if delta == 0 {
-            count += 1;
-        } else {
-            sum += delta;
-        }
-    }
-
-    println!("Part 1: {}\nPart 2: {}", count, sum);
 
     Ok(())
 }
@@ -125,28 +112,67 @@ struct Pos {
     z: usize,
 }
 
-fn get_tower_delta(a: &[Line], b: &[Line], omit: usize) -> usize {
-    let mut count = 0;
-    for (n, (i, j)) in a.iter().zip(b.iter()).enumerate() {
-        if n == omit {
+#[derive(Clone)]
+struct Slot {
+    h: usize,
+    id: usize,
+}
+
+fn cascade_tower(
+    support_up: &[VecSet<usize>],
+    support_by: &[VecSet<usize>],
+    closed_set: &mut VecBitSet,
+    collapse_set: &mut VecBitSet,
+    open_set: &mut BinaryHeap<Reverse<usize>>,
+    idx: usize,
+) -> usize {
+    closed_set.insert(idx);
+    collapse_set.insert(idx);
+    for &v in support_up[idx].iter() {
+        if closed_set.contains(v) {
             continue;
         }
-        if i.from.z != j.from.z {
-            count += 1;
+        closed_set.insert(v);
+        open_set.push(Reverse(v));
+    }
+    while let Some(Reverse(cur)) = open_set.pop() {
+        let supports = &support_by[cur];
+        if supports
+            .iter()
+            .filter(|&&v| collapse_set.contains(v))
+            .count()
+            < supports.len()
+        {
+            continue;
+        }
+        collapse_set.insert(cur);
+        for &v in support_up[cur].iter() {
+            if closed_set.contains(v) {
+                continue;
+            }
+            closed_set.insert(v);
+            open_set.push(Reverse(v));
         }
     }
-    count
+    let res = collapse_set.len() - 1;
+    closed_set.zero();
+    collapse_set.zero();
+    res
 }
 
 fn place_tower(
     min_x: isize,
     min_y: isize,
     xw: usize,
-    height_map: &mut Vec<usize>,
+    yw: usize,
     lines: &[Line],
     omit: usize,
     res: &mut Vec<Line>,
-) {
+) -> (usize, Vec<VecSet<usize>>, Vec<VecSet<usize>>) {
+    let mut critical_supports = VecBitSet::new(lines.len());
+    let mut support_up = vec![VecSet::new(); lines.len()];
+    let mut support_by = Vec::with_capacity(lines.len());
+    let mut height_map = vec![Slot { h: 0, id: 0 }; xw * yw];
     for (n, i) in lines.iter().enumerate() {
         if n == omit {
             continue;
@@ -157,18 +183,35 @@ fn place_tower(
             height,
         } = i;
         let mut highest = 0;
+        let mut supports = VecSet::new();
         for y in from.y..=to.y {
             for x in from.x..=to.x {
                 let key = pos_key(x, y, min_x, min_y, xw);
-                highest = highest.max(height_map[key]);
+                let v = &height_map[key];
+                if v.h > highest {
+                    highest = v.h;
+                    supports.clear();
+                    supports.insert(v.id);
+                } else if highest != 0 && v.h == highest {
+                    supports.insert(v.id);
+                }
             }
         }
+        if supports.len() == 1 {
+            for &v in supports.iter() {
+                critical_supports.insert(v);
+            }
+        }
+        for &v in supports.iter() {
+            support_up[v].insert(n);
+        }
+        support_by.push(supports);
         from.z = highest + 1;
         to.z = from.z + height;
         for y in from.y..=to.y {
             for x in from.x..=to.x {
                 let key = pos_key(x, y, min_x, min_y, xw);
-                height_map[key] = to.z;
+                height_map[key] = Slot { h: to.z, id: n };
             }
         }
         res[n] = Line {
@@ -177,12 +220,11 @@ fn place_tower(
             height: *height,
         };
     }
-}
-
-fn clear_height_map(height_map: &mut Vec<usize>) {
-    for i in height_map.iter_mut() {
-        *i = 0;
-    }
+    (
+        lines.len() - critical_supports.len(),
+        support_up,
+        support_by,
+    )
 }
 
 fn pos_key(x: isize, y: isize, min_x: isize, min_y: isize, xw: usize) -> usize {
@@ -192,4 +234,106 @@ fn pos_key(x: isize, y: isize, min_x: isize, min_y: isize, xw: usize) -> usize {
 fn cmp_pos(a: &Pos, b: &Pos) -> Ordering {
     a.z.cmp(&b.z)
         .then_with(|| a.y.cmp(&b.y).then_with(|| a.x.cmp(&b.x)))
+}
+
+struct VecBitSet {
+    bits: Vec<usize>,
+    size: usize,
+}
+
+#[allow(dead_code)]
+impl VecBitSet {
+    fn new(size: usize) -> Self {
+        Self {
+            bits: vec![0; (size + (usize::BITS as usize - 1)) / usize::BITS as usize],
+            size: 0,
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.size
+    }
+
+    fn zero(&mut self) {
+        for i in self.bits.iter_mut() {
+            *i = 0;
+        }
+        self.size = 0;
+    }
+
+    fn contains(&self, i: usize) -> bool {
+        let a = i / usize::BITS as usize;
+        let b = i % usize::BITS as usize;
+        let mask = 1 << b;
+        self.bits[a] & mask != 0
+    }
+
+    fn insert(&mut self, i: usize) {
+        let a = i / usize::BITS as usize;
+        let b = i % usize::BITS as usize;
+        let mask = 1 << b;
+        if self.bits[a] & mask == 0 {
+            self.bits[a] |= mask;
+            self.size += 1;
+        }
+    }
+
+    fn remove(&mut self, i: usize) {
+        let a = i / usize::BITS as usize;
+        let b = i % usize::BITS as usize;
+        let mask = 1 << b;
+        if self.bits[a] & mask != 0 {
+            self.bits[a] &= !mask;
+            self.size -= 1;
+        }
+    }
+}
+
+#[derive(Clone)]
+struct VecSet<T> {
+    elements: Vec<T>,
+}
+
+impl<T> VecSet<T> {
+    fn new() -> Self {
+        Self {
+            elements: Vec::new(),
+        }
+    }
+
+    fn clear(&mut self) {
+        self.elements.clear();
+    }
+
+    fn len(&self) -> usize {
+        self.elements.len()
+    }
+
+    fn iter(&self) -> Iter<T> {
+        self.elements.iter()
+    }
+}
+
+#[allow(dead_code)]
+impl<T: Eq> VecSet<T> {
+    fn contains(&self, i: &T) -> bool {
+        self.elements.contains(i)
+    }
+
+    fn insert(&mut self, i: T) {
+        if !self.elements.contains(&i) {
+            self.elements.push(i);
+        }
+    }
+}
+
+#[allow(dead_code)]
+impl<T: Eq + Ord> VecSet<T> {
+    fn sort_unstable(&mut self) {
+        self.elements.sort_unstable();
+    }
+
+    fn contains_sorted(&self, i: &T) -> bool {
+        self.elements.binary_search(i).is_ok()
+    }
 }

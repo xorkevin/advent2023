@@ -28,6 +28,9 @@ func main() {
 	for scanner.Scan() {
 		grid = append(grid, []byte(scanner.Text()))
 	}
+	if err := scanner.Err(); err != nil {
+		log.Fatalln(err)
+	}
 
 	height := len(grid)
 	width := len(grid[0])
@@ -46,10 +49,6 @@ func main() {
 	end.x = bytes.IndexByte(grid[height-1], '.')
 	if end.x < 0 {
 		log.Fatalln("No end")
-	}
-
-	if err := scanner.Err(); err != nil {
-		log.Fatalln(err)
 	}
 
 	undirectedGraph, directedGraph := contractPaths(start, end, grid, width, height)
@@ -139,7 +138,7 @@ func contractPaths(start, end Pos, grid [][]byte, w, h int) (undirected, directe
 		n := getPathEdges(cur, end, grid, w, h, closedSet, edges[:])
 		closedSet[curKey] = false
 
-		if cur != start && n < 2 && edges[0].pos != end {
+		if cur != start && n < 2 && (n == 0 || edges[0].pos != end) {
 			// eliminate dead ends
 			continue
 		}
